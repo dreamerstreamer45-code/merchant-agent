@@ -341,5 +341,5 @@ if frontend_dir.exists():
 if __name__ == "__main__":
     import uvicorn
     host = os.getenv("APP_HOST", "0.0.0.0")
-    port = int(os.getenv("PORT") or os.getenv("APP_PORT", "8000"))
+    port = int(os.getenv("PORT"))
     uvicorn.run("backend.main:app", host=host, port=port, reload=True)
