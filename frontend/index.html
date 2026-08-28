@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MerchantAgent — AI Checkout Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --bg: #06060a; --surface: #0e0e14; --surface2: #16161f; --surface3: #1e1e2a;
+    --border: #2a2a3a; --text: #e8e8f0; --text2: #7878a0; --text3: #505070;
+    --accent: #6c5ce7; --accent2: #a29bfe; --accent-glow: rgba(108,92,231,0.3);
+    --green: #00d2a0; --green-glow: rgba(0,210,160,0.2);
+    --red: #ff6b6b; --orange: #ffd93d; --razorpay: #072654;
+    --gradient: linear-gradient(135deg, #6c5ce7, #00d2a0);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+
+  /* --- Left: Chat Panel --- */
+  .chat-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; }
+
+  .chat-header {
+    padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; gap: 16px;
+  }
+  .logo-3d { width: 48px; height: 48px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: var(--surface2); }
+  .chat-header h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .chat-header h1 span { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .chat-header p { font-size: 12px; color: var(--text2); margin-top: 1px; }
+  .header-badge {
+    margin-left: auto; font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--green); background: var(--green-glow);
+    padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0,210,160,0.3);
+  }
+
+  .chat-messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 78%; display: flex; flex-direction: column; }
+  .msg.user { align-self: flex-end; }
+  .msg.assistant { align-self: flex-start; }
+  .bubble {
+    padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.6;
+    word-wrap: break-word; animation: fadeUp 0.3s ease-out;
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .msg.user .bubble {
+    background: var(--accent); color: #fff; border-bottom-right-radius: 4px;
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+  .msg.assistant .bubble { background: var(--surface2); border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+  .tool-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; margin-top: 6px; color: var(--accent2);
+    animation: fadeUp 0.2s ease-out;
+  }
+
+  .cart-bar {
+    padding: 12px 20px; border-top: 1px solid var(--border); background: var(--surface);
+    font-size: 13px; display: flex; justify-content: space-between; align-items: center;
+    animation: fadeUp 0.3s ease-out;
+  }
+  .cart-bar .total { font-weight: 700; color: var(--green); font-size: 15px; }
+
+  .chat-input {
+    display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .chat-input input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 14px;
+    font-family: 'Inter', system-ui, sans-serif; outline: none; transition: border-color 0.2s;
+  }
+  .chat-input input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .chat-input input::placeholder { color: var(--text3); }
+  .chat-input button {
+    background: var(--gradient); color: #fff; border: none; border-radius: 12px;
+    padding: 12px 24px; cursor: pointer; font-size: 14px; font-weight: 600;
+    font-family: 'Inter', system-ui, sans-serif; transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .chat-input button:hover { transform: scale(1.03); box-shadow: 0 4px 20px var(--accent-glow); }
+  .chat-input button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* --- Right: Audit Panel --- */
+  .audit-panel { width: 360px; display: flex; flex-direction: column; background: var(--surface); flex-shrink: 0; }
+  .audit-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .audit-header h2 { font-size: 15px; font-weight: 700; }
+  .audit-header p { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  .audit-entries { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .audit-entry {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 8px; font-size: 12px;
+    transition: border-color 0.2s;
+  }
+  .audit-entry:hover { border-color: var(--accent); }
+  .audit-entry .action { font-weight: 600; color: var(--accent2); margin-bottom: 4px; font-size: 12px; }
+  .audit-entry .explanation { color: var(--text); line-height: 1.5; font-size: 12px; }
+  .audit-entry .timestamp { color: var(--text3); font-size: 10px; margin-top: 6px; }
+  .audit-entry .guardrail { color: var(--orange); font-size: 11px; margin-top: 4px; }
+  .audit-entry .status-blocked { border-left: 3px solid var(--red); }
+  .audit-entry .status-success { border-left: 3px solid var(--green); }
+  .audit-empty { color: var(--text3); text-align: center; padding: 40px 20px; font-size: 13px; }
+
+  /* Typing dots */
+  .typing { display: inline-flex; gap: 3px; padding: 4px 0; }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent2);
+    animation: bounce 1.4s infinite both;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.16s; }
+  .typing span:nth-child(3) { animation-delay: 0.32s; }
+  @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+</style>
+</head>
+<body>
+
+<!-- Chat Panel -->
+<div class="chat-panel">
+  <div class="chat-header">
+    <div class="logo-3d"><canvas id="logoCanvas"></canvas></div>
+    <div>
+      <h1>Merchant<span>Agent</span></h1>
+      <p>AI-powered conversational checkout</p>
+    </div>
+    <div class="header-badge">LIVE DEMO</div>
+  </div>
+  <div class="chat-messages" id="messages">
+    <div class="msg assistant">
+      <div class="bubble">Hi! I'm your AI shopping assistant. Ask me to browse products, add items to your cart, apply coupons, or check out with Razorpay. What are you looking for today?</div>
+    </div>
+  </div>
+  <div class="cart-bar" id="cartBar" style="display:none;">
+    <span id="cartSummary">Cart: 0 items</span>
+    <span class="total" id="cartTotal">₹0</span>
+  </div>
+  <div class="chat-input">
+    <input type="text" id="userInput" placeholder="Ask me anything..." autocomplete="off">
+    <button id="sendBtn" onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<!-- Audit Panel -->
+<div class="audit-panel">
+  <div class="audit-header">
+    <h2>Agent Actions</h2>
+    <p>Every tool call logged with explanations.</p>
+  </div>
+  <div class="audit-entries" id="auditEntries">
+    <div class="audit-empty">Send a message to see agent actions here.</div>
+  </div>
+</div>
+
+<script>
+// =============================================
+// 3D Razorpay Logo Animation (Three.js)
+// =============================================
+(function initLogo() {
+  const canvas = document.getElementById('logoCanvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(48, 48);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.z = 3.2;
+
+  // Razorpay brand color
+  const razorColor = 0x072654;
+  const accentColor = 0x3395ff;
+
+  // Main logo body — a rounded box shape
+  const bodyGeo = new THREE.BoxGeometry(1.6, 1.0, 0.3, 4, 4, 4);
+  const bodyMat = new THREE.MeshPhongMaterial({ color: razorColor, shininess: 80, specular: 0x4488cc });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  scene.add(body);
+
+  // Accent stripe
+  const stripeGeo = new THREE.BoxGeometry(0.15, 0.7, 0.32);
+  const stripeMat = new THREE.MeshPhongMaterial({ color: accentColor, shininess: 100, emissive: 0x1155aa, emissiveIntensity: 0.3 });
+  const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe.position.set(-0.45, 0, 0.01);
+  scene.add(stripe);
+
+  // Inner light bar
+  const barGeo = new THREE.BoxGeometry(0.8, 0.08, 0.32);
+  const barMat = new THREE.MeshPhongMaterial({ color: accentColor, emissive: 0x2266cc, emissiveIntensity: 0.5 });
+  const bar = new THREE.Mesh(barGeo, barMat);
+  bar.position.set(0.15, 0, 0.01);
+  scene.add(bar);
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0x6666aa, 0.6);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(2, 2, 3);
+  scene.add(dirLight);
+  const backLight = new THREE.PointLight(0x3395ff, 0.8, 10);
+  backLight.position.set(-2, -1, -2);
+  scene.add(backLight);
+
+  // Floating particles
+  const particleCount = 30;
+  const particleGeo = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+  for (let i = 0; i < particleCount * 3; i += 3) {
+    positions[i] = (Math.random() - 0.5) * 4;
+    positions[i+1] = (Math.random() - 0.5) * 4;
+    positions[i+2] = (Math.random() - 0.5) * 2 - 1;
+  }
+  particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const particleMat = new THREE.PointsMaterial({ color: accentColor, size: 0.04, transparent: true, opacity: 0.6 });
+  const particles = new THREE.Points(particleGeo, particleMat);
+  scene.add(particles);
+
+  // Mouse interaction
+  let mouseX = 0, mouseY = 0;
+  document.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+    mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+  });
+
+  // Animation loop
+  let time = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    time += 0.015;
+
+    body.rotation.y = Math.sin(time * 0.8) * 0.4 + mouseX * 0.2;
+    body.rotation.x = Math.sin(time * 0.5) * 0.15 + mouseY * 0.1;
+    body.position.y = Math.sin(time * 1.2) * 0.06;
+
+    stripe.rotation.y = body.rotation.y;
+    stripe.rotation.x = body.rotation.x;
+    stripe.position.y = body.position.y;
+
+    bar.rotation.y = body.rotation.y;
+    bar.rotation.x = body.rotation.x;
+    bar.position.y = body.position.y;
+
+    particles.rotation.z = time * 0.1;
+    particles.rotation.y = time * 0.05;
+
+    barMat.emissiveIntensity = 0.3 + Math.sin(time * 2) * 0.2;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+
+// =============================================
+// Chat Logic
+// =============================================
+const API = window.location.origin;
+const SESSION_ID = crypto.randomUUID();
+let awaitingConfirmation = false;
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const auditEl = document.getElementById('auditEntries');
+const cartBar = document.getElementById('cartBar');
+const cartSummary = document.getElementById('cartSummary');
+const cartTotal = document.getElementById('cartTotal');
+
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  addMessage('user', text);
+  inputEl.value = '';
+  sendBtn.disabled = true;
+
+  const typingEl = addMessage('assistant', '<div class="typing"><span></span><span></span><span></span></div>', true);
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: SESSION_ID, message: text }),
+    });
+    const data = await res.json();
+
+    typingEl.remove();
+    addMessage('assistant', data.reply);
+
+    if (data.tool_actions && data.tool_actions.length > 0) {
+      data.tool_actions.forEach(action => {
+        addToolBadge(action.tool, action.result);
+      });
+    }
+
+    if (data.cart && data.cart.length > 0) {
+      const total = data.cart.reduce((sum, i) => sum + i.line_total_paise, 0);
+      cartSummary.textContent = `Cart: ${data.cart.length} item(s)`;
+      cartTotal.textContent = `₹${Math.floor(total / 100)}`;
+      cartBar.style.display = 'flex';
+    } else {
+      cartBar.style.display = 'none';
+    }
+
+    await loadAudit();
+  } catch (err) {
+    typingEl.remove();
+    addMessage('assistant', 'Sorry, something went wrong. Please try again.');
+  }
+
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+function addMessage(role, content, isHtml = false) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  if (isHtml) bubble.innerHTML = content;
+  else bubble.textContent = content;
+  div.appendChild(bubble);
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return div;
+}
+
+function addToolBadge(toolName, result) {
+  const last = messagesEl.querySelector('.msg.assistant:last-child');
+  if (!last) return;
+  const badge = document.createElement('div');
+  badge.className = 'tool-badge';
+  const label = toolName.replace(/_/g, ' ');
+  const status = result?.blocked ? ' (blocked)' : result?.error ? ' (error)' : '';
+  badge.textContent = `\u2699\uFE0F ${label}${status}`;
+  last.appendChild(badge);
+}
+
+async function loadAudit() {
+  try {
+    const res = await fetch(`${API}/api/audit/${SESSION_ID}`);
+    const data = await res.json();
+    if (!data.entries || data.entries.length === 0) return;
+
+    auditEl.innerHTML = '';
+    data.entries.forEach(entry => {
+      const div = document.createElement('div');
+      div.className = `audit-entry status-${entry.status}`;
+      div.innerHTML = `
+        <div class="action">${entry.tool_name || entry.action}</div>
+        <div class="explanation">${entry.explanation || 'No explanation'}</div>
+        ${entry.guardrail ? `<div class="guardrail">\u26A0\uFE0F Guardrail: ${entry.guardrail}</div>` : ''}
+        <div class="timestamp">${new Date(entry.created_at).toLocaleTimeString()}</div>
+      `;
+      auditEl.appendChild(div);
+    });
+    auditEl.scrollTop = auditEl.scrollHeight;
+  } catch (e) {}
+}
+</script>
+</body>
+</html>
