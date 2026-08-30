@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+*.db
+*.sqlite3
+test_*.txt
+*.db-journal
