@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-openai
-razorpay
-pydantic
-pydantic-settings
-sqlalchemy
-httpx
-python-dotenv
