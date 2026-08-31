@@ -1,97 +1,120 @@
-# MerchantAgent — Conversational Checkout Agent
+# MerchantAgent — AI-Powered Price Comparison & Checkout
 
-> **Razorpay AI Buildathon submission** — Track 01: AI Growth & Agentic Commerce
+> A conversational shopping agent that searches across **Amazon, Flipkart, and Google Shopping** in real-time, compares prices, and processes payments via **Razorpay** — all through natural language chat.
 
-A conversational checkout agent that lets customers browse products, build a cart, apply coupons, and complete purchases through Razorpay's test-mode APIs — all via natural language chat. Every action is logged, guarded, and auditable. Runs on **free OpenRouter models** with zero API cost.
+## Live Demo
 
----
-
-## Live Demo Flow
+**[Try it live](https://your-app.up.railway.app)**
 
 ```
-User: "Show me wireless earbuds"
-Agent: [search_catalog] → shows products with prices
-
-User: "Add the Pro one to my cart"
-Agent: [add_to_cart] → "Added 1x Wireless Earbuds Pro (₹999) to your cart."
-
-User: "Do you have a coupon for 10% off?"
-Agent: [apply_coupon SAVE10] → "Coupon applied — 10% discount!"
-
+User: "Find cheapest iPhone 15"
+Agent: [search_online_prices] → queries 4 sources concurrently
+Agent: "Found 6 results! Cheapest is ₹54,900 on Smartprix"
+User: "Add it to my cart"
+Agent: [add_online_product_to_cart] → cart updated
 User: "Checkout"
-Agent: [create_razorpay_order] → "Your order is ₹899. Please confirm."
-User: "Yes, confirm"
-Agent: [confirm_order] → "Order created! Here's your payment link: https://rzp.io/..."
+Agent: [create_razorpay_order] → payment link generated
 ```
-
-Right panel shows every tool call with explanation, arguments, result, and guardrail status.
-
----
 
 ## Architecture
 
 ```mermaid
 flowchart TB
     User["👤 User (Browser)"]
-    UI["🌐 Frontend\n3D Animated Chat Widget"]
+    UI["🌐 Frontend\nChat + Price Cards + Cart"]
     API["⚡ FastAPI\nPOST /api/chat"]
-    Agent["🤖 Checkout Agent\nFree LLM Tool-Calling Loop"]
-    Tools["🔧 Tool Functions\nsearch · cart · order · coupon"]
-    Guard["🛡️ Guardrails\nspending limits · stock check · confirmation gate"]
-    Audit["📋 Audit Log\nSQLite audit_log table"]
+    Agent["🤖 Checkout Agent\nOpenRouter Free LLMs"]
+    Tools["🔧 Tool Functions\nsearch · cart · order"]
+    Search["🔍 Price Comparison\nSerpApi + Flipkart + Amazon + DuckDuckGo"]
+    Guard["🛡️ Guardrails\nspending limits · stock check"]
+    Audit["📋 Audit Trail\nSQLite audit_log table"]
     Razorpay["💳 Razorpay Test API\nOrders + Payment Links"]
-    DB[(SQLite\n60 products · cart · orders · audit)]
+    DB[(SQLite\nproducts · cart · orders · audit)]
 
-    User -->|"natural language message"| UI
+    User -->|"natural language"| UI
     UI -->|"POST /api/chat"| API
     API --> Agent
     Agent -->|"tool_use blocks"| Tools
+    Tools --> Search
     Tools --> Guard
     Guard -->|"validated action"| DB
-    Tools -->|"create_order / create_payment_link"| Razorpay
+    Tools -->|"create_order"| Razorpay
     Tools -->|"log every action"| Audit
     Agent -->|"final text reply"| API
     API -->|"JSON response"| UI
-    UI -->|"render reply + audit panel"| User
+    UI -->|"render reply + price cards"| User
 
     style Agent fill:#6c5ce7,color:#fff
+    style Search fill:#00b894,color:#fff
     style Guard fill:#e17055,color:#fff
-    style Audit fill:#fdcb6e,color:#000
-    style Razorpay fill:#00b894,color:#fff
+    style Razorpay fill:#072654,color:#fff
 ```
 
-### Free Model Fallback Chain
+## Features
 
-The agent tries free OpenRouter models in order until one succeeds — zero API cost:
+| Feature | Description |
+|---------|-------------|
+| **Multi-Platform Search** | Searches Amazon, Flipkart, Google Shopping simultaneously |
+| **Price Comparison** | Results sorted by cheapest first with source badges |
+| **Add to Cart** | Online products added to cart for Razorpay checkout |
+| **Razorpay Payments** | Test-mode order creation + payment link generation |
+| **Audit Trail** | Every tool call logged with explanation and status |
+| **Guardrails** | Spending limits, stock checks, confirmation gates |
+| **Free LLMs** | Uses OpenRouter free model fallback chain |
+| **Async Search** | All providers queried concurrently with timeout handling |
 
-| Priority | Model | Active Params | Context |
-|----------|-------|---------------|---------|
-| 1st | `thinkingmachines/inkling:free` | 41B | 1M tokens |
-| 2nd | `dots-studio/dots-3-note-preview:free` | 16B | 512K tokens |
-| 3rd | `nvidia/nemotron-3.5-lightning:free` | 3B | 1M tokens |
+## Tech Stack
 
-Set `OPENROUTER_MODEL=` (blank) in `.env` to use the chain, or set a specific model to override.
+| Component | Technology |
+|-----------|-----------|
+| Backend | Python 3.11+, FastAPI, SQLAlchemy |
+| LLM | OpenRouter (Inkling, Dots3, Nemotron) via OpenAI SDK |
+| Payments | Razorpay Python SDK (test mode) |
+| Database | SQLite |
+| Search | SerpApi (Google Shopping), RapidAPI (Flipkart/Amazon), DuckDuckGo |
+| Frontend | Vanilla HTML/CSS/JS + Three.js (3D animated logo) |
+| Tests | pytest + pytest-asyncio (26 tests) |
 
-### Audit Trail Path
-
-Every tool call flows through the audit logger **before** the result is returned to the LLM:
+## Project Structure
 
 ```
-LLM → tool_use block → Guardrail check → Execute tool → Audit entry (logged) → tool_result → LLM
+merchant-agent/
+├── backend/
+│   ├── main.py                  # FastAPI app, endpoints, lifespan
+│   ├── agent.py                 # LLM tool-calling orchestration
+│   ├── tools.py                 # 12 validated tool functions
+│   ├── models.py                # SQLAlchemy ORM + Pydantic schemas
+│   ├── audit.py                 # Audit trail logging
+│   ├── razorpay_client.py       # Razorpay SDK wrapper
+│   ├── seed.py                  # 60 demo products + 5 coupons
+│   └── search_providers/        # Multi-platform price comparison
+│       ├── base.py              # Abstract base + SearchResult model
+│       ├── serpapi_provider.py  # Google Shopping via SerpApi
+│       ├── flipkart_provider.py # Flipkart via RapidAPI
+│       ├── amazon_provider.py   # Amazon via RapidAPI
+│       ├── duckduckgo_provider.py # Free fallback (no API key)
+│       └── aggregator.py        # Concurrent search + dedup + sort
+├── frontend/
+│   └── index.html               # Chat widget + price cards + cart
+├── tests/
+│   └── test_all.py              # 26 tests (models, tools, API, search)
+├── Dockerfile                   # Railway deployment
+├── railway.json                 # Railway config
+├── requirements.txt
+└── README.md
 ```
-
----
 
 ## Setup
 
 ### 1. Clone and install
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/YOUR_USERNAME/merchant-agent.git
 cd merchant-agent
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+pip install pytest pytest-asyncio  # for tests
 ```
 
 ### 2. Configure API keys
@@ -103,169 +126,76 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-# OpenRouter — free models, no cost
-OPENROUTER_API_KEY=sk-or-...              # Get from openrouter.ai/keys
-OPENROUTER_MODEL=                          # Leave blank for free fallback chain
+# OpenRouter (free LLMs)
+OPENROUTER_API_KEY=sk-or-...
 
 # Razorpay test mode
-RAZORPAY_KEY_ID=rzp_test_...              # Get from dashboard.razorpay.com → Settings → API Keys
-RAZORPAY_KEY_SECRET=...                   # Same page, revealed on creation
-```
+RAZORPAY_KEY_ID=rzp_test_...
+RAZORPAY_KEY_SECRET=...
 
-> **Razorpay test-mode keys don't move real money.** Use test card `4111 1111 1111 1111` with any future expiry and CVV `123` to simulate successful payments.
+# Price comparison (at least one recommended)
+SERPAPI_KEY=...              # serpapi.com (5,000 free/mo, covers Amazon+Flipkart)
+RAPIDAPI_KEY=...             # rapidapi.com (free tier for direct Flipkart/Amazon)
+```
 
 ### 3. Run
 
 ```bash
 python -m backend.main
+# Open http://127.0.0.1:8000
 ```
 
-Open **http://127.0.0.1:8000** in your browser.
+### 4. Run tests
 
----
-
-## Project Structure
-
+```bash
+python -m pytest tests/ -v
 ```
-merchant-agent/
-├── backend/
-│   ├── main.py              # FastAPI app, endpoints, lifespan
-│   ├── agent.py             # Free LLM tool-calling orchestration + fallback chain
-│   ├── tools.py             # Validated tool functions (LLM never fabricates state)
-│   ├── models.py            # SQLAlchemy ORM + Pydantic schemas
-│   ├── audit.py             # Audit trail logging + query
-│   ├── razorpay_client.py   # Razorpay SDK wrapper with retry/fallback
-│   └── seed.py              # 60 demo products + 5 coupons across 10 categories
-├── frontend/
-│   └── index.html           # 3D animated chat widget (Three.js) + audit panel
-├── .env.example
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Product Catalog
-
-**60 products** across **10 categories**:
-
-| Category | Products | Price Range |
-|----------|----------|-------------|
-| Electronics | 8 | ₹299 – ₹1,999 |
-| Accessories | 7 | ₹349 – ₹1,990 |
-| Home & Lifestyle | 7 | ₹1,099 – ₹4,999 |
-| Fitness | 6 | ₹399 – ₹3,499 |
-| Stationery | 5 | ₹299 – ₹1,190 |
-| Clothing & Fashion | 6 | ₹499 – ₹2,499 |
-| Kitchen | 5 | ₹399 – ₹3,499 |
-| Personal Care | 5 | ₹699 – ₹1,799 |
-| Books & Media | 5 | ₹349 – ₹899 |
-| Garden & Outdoor | 3 | ₹799 – ₹1,999 |
-
-**5 coupons:** `SAVE10` (10%), `FLAT20` (20%), `WELCOME15` (15%), `MEGA25` (25%), `FIRST50` (50%)
-
----
-
-## Guardrails
-
-| Guardrail | Limit | Enforced By |
-|-----------|-------|-------------|
-| Max single order | ₹5,000 | `tools.py` — rejects orders above limit |
-| Max session spending | ₹20,000 | `tools.py` — blocks cart additions that would exceed |
-| Max quantity per item | 5 | `tools.py` — validates before adding |
-| Max coupon discount | 25% | `tools.py` — rejects coupons above cap |
-| Order confirmation gate | ≥ ₹500 | `tools.py` — returns confirmation prompt, agent asks user |
-| Empty cart checkout | N/A | `tools.py` — blocks with helpful message |
-
-**The LLM never generates amounts or order IDs.** All money values come from the product catalog (SQLite), and order IDs come from Razorpay's API response.
-
----
-
-## Audit Trail
-
-Every tool call is logged to `audit_log` with:
-
-- **`action`** — tool name (e.g. `add_to_cart`)
-- **`arguments`** — exact JSON args sent by the LLM
-- **`result`** — exact JSON result returned
-- **`status`** — `success` | `blocked` | `failed`
-- **`guardrail`** — which guardrail fired, if any
-- **`explanation`** — human-readable sentence explaining what happened
-- **`created_at`** — UTC timestamp
-
-View via:
-- **UI:** Right panel shows entries in real-time
-- **API:** `GET /api/audit/{session_id}` returns the full trail
-- **Database:** Query `audit_log` table directly
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Backend | Python 3.11+, FastAPI |
-| LLM | OpenRouter free models (Inkling, Dots3, Nemotron) via OpenAI SDK |
-| Payments | Razorpay Python SDK (test mode) |
-| Database | SQLite + SQLAlchemy |
-| Frontend | Vanilla HTML/CSS/JS + Three.js (3D animated Razorpay logo) |
-| Audit | SQLite `audit_log` table |
-
----
 
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/chat` | Send message → agent reply + tool actions + cart |
-| `GET` | `/api/products` | List all products (optional `?category=`) |
+| `GET` | `/api/products` | List local products |
 | `GET` | `/api/audit/{session_id}` | Audit trail for a session |
-| `GET` | `/api/audit` | All audit entries |
 | `GET` | `/api/orders/{session_id}` | Orders for a session |
 | `POST` | `/webhook/razorpay` | Razorpay webhook receiver |
 | `GET` | `/health` | Liveness check |
 | `GET` | `/` | Frontend UI |
-
----
+| `GET` | `/docs` | Auto-generated API docs |
 
 ## Deployment
 
-### Railway (recommended for demos)
+### Railway (recommended)
 
-1. Push code to GitHub
-2. Connect repo to Railway at [railway.app](https://railway.app)
-3. Set environment variables in Railway dashboard (Variables tab):
-   ```
-   OPENROUTER_API_KEY=sk-or-...
-   RAZORPAY_KEY_ID=rzp_test_...
-   RAZORPAY_KEY_SECRET=...
-   ```
-4. Railway auto-detects Python and deploys
+1. Push to GitHub
+2. Connect repo to [railway.app](https://railway.app)
+3. Set environment variables in Railway dashboard
+4. Railway auto-deploys via Dockerfile
 
-### Local
+### Docker
 
 ```bash
-python -m backend.main
-# Access at http://127.0.0.1:8000
+docker build -t merchant-agent .
+docker run -p 8000:8000 --env-file .env merchant-agent
 ```
 
----
+## Test Results
 
-## Demo Script (5-minute pitch)
+```
+26 passed in 3.33s
 
-1. **0:00-0:30** — "This is a conversational checkout agent running on free LLM models. Zero API cost, fully auditable."
-
-2. **0:30-1:30** — Type "show me wireless earbuds" → agent calls `search_catalog` → results appear. Point to the 3D animated UI and audit panel.
-
-3. **1:30-2:30** — "Add the Pro one" → cart updates. "Also add the Bluetooth speaker" → cross-sell. Show 60-product catalog across 10 categories.
-
-4. **2:30-3:30** — "I have a coupon SAVE10" → discount applied. Show guardrail validation in audit trail.
-
-5. **3:30-4:30** — "Checkout" → Razorpay order created, confirmation flow, payment link generated.
-
-6. **4:30-5:00** — "Every action is logged, guarded by spending limits, and uses only free models. Zero cost, production-grade agentic commerce."
-
----
+tests/test_all.py::TestSearchResult::test_price_display_inr         PASSED
+tests/test_all.py::TestSearchResult::test_price_display_usd         PASSED
+tests/test_all.py::TestDuckDuckGoProvider::test_search_returns_list PASSED
+tests/test_all.py::TestDuckDuckGoProvider::test_price_extraction    PASSED
+tests/test_all.py::TestAggregator::test_deduplication               PASSED
+tests/test_all.py::TestTools::test_add_online_product_to_cart       PASSED
+tests/test_all.py::TestAPI::test_health                             PASSED
+tests/test_all.py::TestAPI::test_products                           PASSED
+tests/test_all.py::TestAPI::test_frontend_serves                    PASSED
+... (26 total)
+```
 
 ## License
 
