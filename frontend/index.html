@@ -22,6 +22,35 @@
   /* --- Left: Chat Panel --- */
   .chat-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; }
 
+  /* Top Nav */
+  .top-nav {
+    padding: 10px 24px; border-bottom: 1px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; gap: 16px; font-size: 12px;
+  }
+  .top-nav .nav-links { display: flex; gap: 6px; }
+  .nav-chip {
+    padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text2); cursor: pointer;
+    font-size: 11px; font-weight: 500; transition: all 0.2s;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .nav-chip:hover { border-color: var(--accent); color: var(--accent2); background: rgba(108,92,231,0.1); }
+  .nav-chip.active { border-color: var(--accent); color: #fff; background: var(--accent); }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .cart-toggle {
+    position: relative; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); cursor: pointer;
+    font-size: 12px; font-weight: 600; transition: all 0.2s;
+    font-family: 'Inter', system-ui, sans-serif; display: flex; align-items: center; gap: 6px;
+  }
+  .cart-toggle:hover { border-color: var(--green); color: var(--green); }
+  .cart-badge {
+    position: absolute; top: -6px; right: -6px; background: var(--green);
+    color: #000; font-size: 10px; font-weight: 800; width: 18px; height: 18px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  }
+  .cart-badge:empty { display: none; }
+
   .chat-header {
     padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface);
     display: flex; align-items: center; gap: 16px;
@@ -104,6 +133,18 @@
   }
   .chat-input button:hover { transform: scale(1.03); box-shadow: 0 4px 20px var(--accent-glow); }
   .chat-input button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Suggestion Chips */
+  .suggestions {
+    display: flex; gap: 6px; padding: 0 20px 10px; flex-wrap: wrap; background: var(--surface);
+  }
+  .suggestion-chip {
+    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text2); cursor: pointer;
+    font-size: 12px; font-weight: 500; transition: all 0.2s; white-space: nowrap;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .suggestion-chip:hover { border-color: var(--accent); color: var(--accent2); background: rgba(108,92,231,0.1); transform: translateY(-1px); }
 
   /* --- Right: Audit Panel --- */
   .audit-panel { width: 360px; display: flex; flex-direction: column; background: var(--surface); flex-shrink: 0; }
@@ -196,11 +237,25 @@
 
 <!-- Chat Panel -->
 <div class="chat-panel">
+  <div class="top-nav">
+    <div class="nav-links">
+      <button class="nav-chip active" onclick="sendSuggestion('Show me trending products')">🔥 Trending</button>
+      <button class="nav-chip" onclick="sendSuggestion('Show me electronics deals')">⚡ Electronics</button>
+      <button class="nav-chip" onclick="sendSuggestion('Show me fashion deals')">👗 Fashion</button>
+      <button class="nav-chip" onclick="sendSuggestion('Show me home and kitchen deals')">🏠 Home</button>
+      <button class="nav-chip" onclick="sendSuggestion('Show me best deals today')">💰 Best Deals</button>
+    </div>
+    <div class="nav-right">
+      <button class="cart-toggle" id="cartToggle" onclick="toggleCartPanel()">
+        🛒 Cart <span class="cart-badge" id="cartBadge"></span>
+      </button>
+    </div>
+  </div>
   <div class="chat-header">
     <div class="logo-3d"><canvas id="logoCanvas"></canvas></div>
     <div>
       <h1>Merchant<span>Agent</span></h1>
-      <p>AI-powered conversational checkout</p>
+      <p>AI-powered price comparison across Amazon, Flipkart & more</p>
     </div>
     <div class="header-badge">LIVE DEMO</div>
   </div>
@@ -218,9 +273,17 @@
       </button>
     </div>
   </div>
+  <div class="suggestions" id="suggestions">
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest iPhone 15')">📱 iPhone 15</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest wireless earbuds')">🎧 Earbuds</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest laptop under 50000')">💻 Laptop</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest running shoes')">👟 Shoes</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest air conditioner')">❄️ AC</button>
+    <button class="suggestion-chip" onclick="sendSuggestion('Find cheapest smartwatch')">⌚ Watch</button>
+  </div>
   <div class="chat-input">
-    <input type="text" id="userInput" placeholder="Ask me anything..." autocomplete="off">
-    <button id="sendBtn" onclick="sendMessage()">Send</button>
+    <input type="text" id="userInput" placeholder="Search any product across Amazon, Flipkart, Google..." autocomplete="off">
+    <button id="sendBtn" onclick="sendMessage()">🔍 Search</button>
   </div>
 </div>
 
@@ -347,10 +410,24 @@ const cartBar = document.getElementById('cartBar');
 const cartItems = document.getElementById('cartItems');
 const cartTotal = document.getElementById('cartTotal');
 const payBtn = document.getElementById('payBtn');
+const cartBadge = document.getElementById('cartBadge');
+const suggestionsEl = document.getElementById('suggestions');
+let cartCount = 0;
 
 inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
+
+function sendSuggestion(text) {
+  inputEl.value = text;
+  sendMessage();
+  // Hide suggestions after first use
+  if (suggestionsEl) suggestionsEl.style.display = 'none';
+}
+
+function toggleCartPanel() {
+  cartBar.style.display = cartBar.style.display === 'none' ? 'flex' : 'none';
+}
 
 async function sendMessage() {
   const text = inputEl.value.trim();
@@ -391,8 +468,12 @@ async function sendMessage() {
       cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
       cartBar.style.display = 'flex';
       payBtn.disabled = false;
+      cartCount = data.cart.reduce((sum, i) => sum + i.quantity, 0);
+      cartBadge.textContent = cartCount > 0 ? cartCount : '';
     } else {
       cartBar.style.display = 'none';
+      cartCount = 0;
+      cartBadge.textContent = '';
     }
 
     await loadAudit();
