@@ -114,6 +114,27 @@
   .pay-btn:hover { transform: scale(1.03); box-shadow: 0 4px 20px rgba(7,38,84,0.4); }
   .pay-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .pay-btn .rzp-icon { font-size: 16px; }
+  .coupon-row {
+    display: flex; gap: 6px; padding: 6px 16px; border-top: 1px solid var(--border);
+    background: var(--surface); align-items: center;
+  }
+  .coupon-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; color: var(--text); font-size: 12px;
+    font-family: 'Inter', system-ui, sans-serif; outline: none;
+  }
+  .coupon-input:focus { border-color: var(--accent); }
+  .coupon-input::placeholder { color: var(--text3); }
+  .coupon-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; font-size: 11px; font-weight: 600;
+    font-family: 'Inter', system-ui, sans-serif; transition: all 0.2s;
+  }
+  .coupon-btn:hover { background: #5a4bd1; }
+  .coupon-msg {
+    font-size: 11px; padding: 2px 16px 4px; color: var(--green);
+  }
+  .coupon-msg.error { color: var(--red); }
 
   .chat-input {
     display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border);
@@ -220,6 +241,15 @@
     border: 1px solid var(--accent); border-radius: 6px; transition: all 0.2s;
   }
   .price-card .buy-btn:hover { background: var(--accent); color: #fff; }
+  .price-card .add-cart-btn {
+    display: inline-block; margin-top: 4px; margin-left: 4px; font-size: 11px; font-weight: 600;
+    color: #fff; background: var(--green); padding: 3px 10px;
+    border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .price-card .add-cart-btn:hover { background: #00b894; transform: scale(1.05); }
+  .price-card .add-cart-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .price-card .add-cart-btn.added { background: var(--text3); }
   .cheapest-label {
     font-size: 10px; font-weight: 700; color: var(--green); background: var(--green-glow);
     padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(0,210,160,0.3);
@@ -266,6 +296,11 @@
   </div>
   <div class="cart-bar" id="cartBar" style="display:none;">
     <div class="cart-items" id="cartItems"></div>
+    <div class="coupon-row">
+      <input type="text" class="coupon-input" id="couponInput" placeholder="Enter coupon code (e.g. SAVE10)">
+      <button class="coupon-btn" onclick="applyCoupon()">Apply</button>
+    </div>
+    <div class="coupon-msg" id="couponMsg"></div>
     <div class="cart-footer">
       <span class="total" id="cartTotal">₹0</span>
       <button class="pay-btn" id="payBtn" onclick="checkoutRazorpay()">
@@ -429,6 +464,117 @@ function toggleCartPanel() {
   cartBar.style.display = cartBar.style.display === 'none' ? 'flex' : 'none';
 }
 
+// =============================================
+// Add Online Product to Cart
+// =============================================
+async function addToCartOnline(btn, title, price, source, url) {
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+
+  const msg = `Add to cart: "${title}" from ${source} at price ${price} rupees. URL: ${url}`;
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: SESSION_ID, message: msg }),
+    });
+    const data = await res.json();
+
+    // Update cart display
+    if (data.cart && data.cart.length > 0) {
+      const total = data.cart.reduce((sum, i) => sum + i.line_total_paise, 0);
+      cartItems.innerHTML = data.cart.map(i => `
+        <div class="cart-item">
+          <span class="item-name">${escapeHtml(i.product_name)}</span>
+          <span class="item-qty">x${i.quantity}</span>
+          <span class="item-price">${escapeHtml(i.line_total_display)}</span>
+        </div>
+      `).join('');
+      cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+      cartBar.style.display = 'flex';
+      payBtn.disabled = false;
+      cartCount = data.cart.reduce((sum, i) => sum + i.quantity, 0);
+      cartBadge.textContent = cartCount > 0 ? cartCount : '';
+    }
+
+    btn.textContent = '\u2713 Added';
+    btn.classList.add('added');
+
+    // Also show agent's reply in chat
+    if (data.reply) {
+      addMessage('assistant', data.reply);
+    }
+
+    await loadAudit();
+  } catch (err) {
+    btn.textContent = 'Failed';
+    btn.disabled = false;
+  }
+}
+
+// =============================================
+// Apply Coupon Code
+// =============================================
+async function applyCoupon() {
+  const couponInput = document.getElementById('couponInput');
+  const couponMsg = document.getElementById('couponMsg');
+  const code = couponInput.value.trim();
+  if (!code) return;
+
+  couponMsg.textContent = '';
+  couponMsg.className = 'coupon-msg';
+
+  const msg = `Apply coupon code: ${code}`;
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: SESSION_ID, message: msg }),
+    });
+    const data = await res.json();
+
+    // Check tool actions for coupon result
+    if (data.tool_actions) {
+      for (const action of data.tool_actions) {
+        if (action.tool === 'apply_coupon') {
+          if (action.result.blocked) {
+            couponMsg.textContent = action.result.error || 'Invalid coupon';
+            couponMsg.className = 'coupon-msg error';
+          } else {
+            couponMsg.textContent = action.result.message || `Coupon ${code} applied!`;
+            couponMsg.className = 'coupon-msg';
+          }
+        }
+      }
+    }
+
+    // Show reply in chat
+    if (data.reply) {
+      addMessage('assistant', data.reply);
+    }
+
+    // Update cart
+    if (data.cart && data.cart.length > 0) {
+      const total = data.cart.reduce((sum, i) => sum + i.line_total_paise, 0);
+      cartItems.innerHTML = data.cart.map(i => `
+        <div class="cart-item">
+          <span class="item-name">${escapeHtml(i.product_name)}</span>
+          <span class="item-qty">x${i.quantity}</span>
+          <span class="item-price">${escapeHtml(i.line_total_display)}</span>
+        </div>
+      `).join('');
+      cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+    }
+
+    await loadAudit();
+  } catch (err) {
+    couponMsg.textContent = 'Failed to apply coupon';
+    couponMsg.className = 'coupon-msg error';
+  }
+}
+
 async function sendMessage() {
   const text = inputEl.value.trim();
   if (!text) return;
@@ -542,6 +688,11 @@ function renderPriceComparison(container, data) {
       ? `<img class="thumb" src="${item.thumbnail}" alt="" onerror="this.style.display='none'">`
       : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text3)">\uD83D\uDCED</div>`;
 
+    const buyBtnHtml = item.url && item.url.startsWith('http')
+      ? `<a class="buy-btn" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Buy \u2192</a>`
+      : '';
+    const addCartBtnHtml = `<button class="add-cart-btn" onclick="addToCartOnline(this, ${JSON.stringify(item.title).replace(/"/g, '&quot;')}, ${item.price}, '${escapeHtml(item.source)}', '${escapeHtml(item.url || '')}')">+ Cart</button>`;
+
     card.innerHTML = `
       ${thumbHtml}
       <div class="info">
@@ -554,7 +705,8 @@ function renderPriceComparison(container, data) {
       </div>
       <div class="price-col">
         <div class="price-val">${escapeHtml(item.price_display)}</div>
-        <a class="buy-btn" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Buy \u2192</a>
+        ${buyBtnHtml}
+        ${addCartBtnHtml}
       </div>
     `;
     wrapper.appendChild(card);
