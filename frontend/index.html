@@ -302,7 +302,11 @@
     </div>
     <div class="coupon-msg" id="couponMsg"></div>
     <div class="cart-footer">
-      <span class="total" id="cartTotal">₹0</span>
+      <div>
+        <span class="total" id="cartTotal">₹0</span>
+        <span id="discountLine" style="display:none; margin-left:8px; font-size:12px; color:var(--green); text-decoration:line-through; color:var(--text3);"></span>
+        <span id="finalTotal" style="display:none; margin-left:8px; font-size:16px; font-weight:800; color:var(--green);"></span>
+      </div>
       <button class="pay-btn" id="payBtn" onclick="checkoutRazorpay()">
         <span class="rzp-icon">💳</span> Pay with Razorpay
       </button>
@@ -447,6 +451,8 @@ const cartTotal = document.getElementById('cartTotal');
 const payBtn = document.getElementById('payBtn');
 const cartBadge = document.getElementById('cartBadge');
 const suggestionsEl = document.getElementById('suggestions');
+const discountLine = document.getElementById('discountLine');
+const finalTotalEl = document.getElementById('finalTotal');
 let cartCount = 0;
 
 inputEl.addEventListener('keydown', (e) => {
@@ -611,7 +617,37 @@ async function sendMessage() {
           <span class="item-price">${escapeHtml(i.line_total_display)}</span>
         </div>
       `).join('');
-      cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+
+      // Check for coupon in tool actions
+      let discountPct = 0;
+      if (data.tool_actions) {
+        for (const action of data.tool_actions) {
+          if (action.tool === 'apply_coupon' && !action.result.blocked) {
+            discountPct = action.result.discount_percent || 0;
+          }
+        }
+      }
+
+      if (discountPct > 0) {
+        const discountAmt = Math.floor(total * discountPct / 100);
+        const finalTotal = total - discountAmt;
+        cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+        cartTotal.style.textDecoration = 'line-through';
+        cartTotal.style.color = 'var(--text3)';
+        cartTotal.style.fontSize = '12px';
+        discountLine.textContent = `-\u20b9${Math.floor(discountAmt / 100)} (${discountPct}% off)`;
+        discountLine.style.display = 'inline';
+        finalTotalEl.textContent = `\u20b9${Math.floor(finalTotal / 100)}`;
+        finalTotalEl.style.display = 'inline';
+      } else {
+        cartTotal.textContent = `\u20b9${Math.floor(total / 100)}`;
+        cartTotal.style.textDecoration = 'none';
+        cartTotal.style.color = 'var(--green)';
+        cartTotal.style.fontSize = '15px';
+        discountLine.style.display = 'none';
+        finalTotalEl.style.display = 'none';
+      }
+
       cartBar.style.display = 'flex';
       payBtn.disabled = false;
       cartCount = data.cart.reduce((sum, i) => sum + i.quantity, 0);
@@ -620,6 +656,18 @@ async function sendMessage() {
       cartBar.style.display = 'none';
       cartCount = 0;
       cartBadge.textContent = '';
+    }
+
+    // Check for coupon discount in tool actions
+    if (data.tool_actions) {
+      for (const action of data.tool_actions) {
+        if (action.tool === 'apply_coupon' && !action.result.blocked) {
+          const pct = action.result.discount_percent || 0;
+          const code = action.result.code || '';
+          document.getElementById('couponMsg').textContent = `\u2713 ${code} applied — ${pct}% off`;
+          document.getElementById('couponMsg').className = 'coupon-msg';
+        }
+      }
     }
 
     await loadAudit();
