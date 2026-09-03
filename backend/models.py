@@ -67,6 +67,7 @@ class Session(Base):
     session_id = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
     customer_name = Column(String(200), nullable=True)
     status = Column(String(20), nullable=False, default="active")
+    applied_coupon = Column(String(50), nullable=True)
     created_at = Column(DateTime, nullable=False, default=_utcnow)
 
     messages = relationship("Message", back_populates="session", cascade="all, delete-orphan")

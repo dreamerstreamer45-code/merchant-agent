@@ -220,7 +220,7 @@ def remove_from_cart(db: DBSession, session_db_id: int, product_id: int) -> dict
 # ---------------------------------------------------------------------------
 
 def get_cart(db: DBSession, session_db_id: int) -> dict:
-    """Return current cart contents and total."""
+    """Return current cart contents and total (with coupon discount if applied)."""
     items = (
         db.query(CartItem)
         .filter(CartItem.session_id == session_db_id)
@@ -243,11 +243,31 @@ def get_cart(db: DBSession, session_db_id: int) -> dict:
                 "line_total_display": f"₹{line_total // 100}",
             })
 
+    # Check for applied coupon and calculate discount
+    discount_paise = 0
+    discount_percent = 0
+    coupon_code = ""
+    db_session = db.query(Session).filter(Session.id == session_db_id).first()
+    if db_session and db_session.applied_coupon:
+        coupon = db.query(Coupon).filter(Coupon.code == db_session.applied_coupon).first()
+        if coupon and coupon.is_active:
+            discount_percent = coupon.discount_percent
+            discount_paise = int(total * discount_percent / 100)
+            coupon_code = coupon.code
+
+    final_total = total - discount_paise
+
     return {
         "items": cart_items,
         "item_count": len(cart_items),
         "total_paise": total,
         "total_display": f"₹{total // 100}",
+        "discount_paise": discount_paise,
+        "discount_display": f"₹{discount_paise // 100}" if discount_paise else "",
+        "discount_percent": discount_percent,
+        "coupon_code": coupon_code,
+        "final_total_paise": final_total,
+        "final_total_display": f"₹{final_total // 100}",
     }
 
 
@@ -274,6 +294,11 @@ def apply_coupon(db: DBSession, session_db_id: int, code: str) -> dict:
         }
 
     coupon.uses_count += 1
+
+    # Store applied coupon on the session
+    db_session = db.query(Session).filter(Session.id == session_db_id).first()
+    if db_session:
+        db_session.applied_coupon = coupon.code
     db.commit()
 
     return {
@@ -304,7 +329,7 @@ def create_razorpay_order(db: DBSession, session_db_id: int) -> dict:
     if not cart["items"]:
         return {"error": "Cart is empty. Add items before checkout.", "blocked": True, "requires_confirmation": False}
 
-    total = cart["total_paise"]
+    total = cart["final_total_paise"]
     if total > MAX_SINGLE_ORDER_PAISE:
         return {
             "error": f"Order total ₹{total // 100} exceeds the single order limit of ₹{MAX_SINGLE_ORDER_PAISE // 100}.",
@@ -316,20 +341,7 @@ def create_razorpay_order(db: DBSession, session_db_id: int) -> dict:
     # Build receipt string
     receipt = f"rcpt_{session_db_id}_{uuid.uuid4().hex[:8]}"
 
-    # Check if confirmation is required
-    if total >= CONFIRMATION_THRESHOLD_PAISE:
-        return {
-            "requires_confirmation": True,
-            "preview": {
-                "total_paise": total,
-                "total_display": f"₹{total // 100}",
-                "item_count": cart["item_count"],
-                "items": [{"name": i["product_name"], "qty": i["quantity"], "total": i["line_total_display"]} for i in cart["items"]],
-            },
-            "message": f"Your order total is ₹{total // 100} ({cart['item_count']} item(s)). Please confirm to proceed.",
-        }
-
-    # Under threshold — create order directly
+    # Direct checkout — no confirmation gate
     return _execute_create_order(db, session_db_id, total, receipt, cart)
 
 
@@ -341,7 +353,7 @@ def confirm_order(db: DBSession, session_db_id: int) -> dict:
     if not cart["items"]:
         return {"error": "Cart is empty.", "blocked": True}
 
-    total = cart["total_paise"]
+    total = cart["final_total_paise"]
     receipt = f"rcpt_{session_db_id}_{uuid.uuid4().hex[:8]}"
     return _execute_create_order(db, session_db_id, total, receipt, cart)
 
