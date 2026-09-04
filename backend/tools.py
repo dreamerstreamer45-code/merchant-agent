@@ -312,7 +312,7 @@ def apply_coupon(db: DBSession, session_db_id: int, code: str) -> dict:
 # Tool: create_razorpay_order
 # ---------------------------------------------------------------------------
 
-def create_razorpay_order(db: DBSession, session_db_id: int) -> dict:
+async def create_razorpay_order(db: DBSession, session_db_id: int) -> dict:
     """Create a Razorpay test-mode order from the current cart.
 
     Guardrails enforced:
@@ -322,9 +322,6 @@ def create_razorpay_order(db: DBSession, session_db_id: int) -> dict:
 
     Returns the Razorpay order details + internal order ID.
     """
-    import asyncio
-    from backend.razorpay_client import create_order, RazorpayError
-
     cart = get_cart(db, session_db_id)
     if not cart["items"]:
         return {"error": "Cart is empty. Add items before checkout.", "blocked": True, "requires_confirmation": False}
@@ -342,25 +339,22 @@ def create_razorpay_order(db: DBSession, session_db_id: int) -> dict:
     receipt = f"rcpt_{session_db_id}_{uuid.uuid4().hex[:8]}"
 
     # Direct checkout — no confirmation gate
-    return _execute_create_order(db, session_db_id, total, receipt, cart)
+    return await _execute_create_order(db, session_db_id, total, receipt, cart)
 
 
-def confirm_order(db: DBSession, session_db_id: int) -> dict:
+async def confirm_order(db: DBSession, session_db_id: int) -> dict:
     """Called after the user confirms a high-value order."""
-    from backend.razorpay_client import RazorpayError
-
     cart = get_cart(db, session_db_id)
     if not cart["items"]:
         return {"error": "Cart is empty.", "blocked": True}
 
     total = cart["final_total_paise"]
     receipt = f"rcpt_{session_db_id}_{uuid.uuid4().hex[:8]}"
-    return _execute_create_order(db, session_db_id, total, receipt, cart)
+    return await _execute_create_order(db, session_db_id, total, receipt, cart)
 
 
-def _execute_create_order(db: DBSession, session_db_id: int, total_paise: int, receipt: str, cart: dict) -> dict:
+async def _execute_create_order(db: DBSession, session_db_id: int, total_paise: int, receipt: str, cart: dict) -> dict:
     """Actually create the Razorpay order (with retry + fallback)."""
-    import asyncio
     from backend.razorpay_client import create_order, create_payment_link, RazorpayError
 
     # Store the order in our DB first
@@ -377,7 +371,7 @@ def _execute_create_order(db: DBSession, session_db_id: int, total_paise: int, r
     # Attempt order creation (with one retry)
     for attempt in range(2):
         try:
-            rp_order = asyncio.run(create_order(total_paise, receipt))
+            rp_order = await create_order(total_paise, receipt)
 
             order.razorpay_order_id = rp_order["id"]
             order.status = "created"
@@ -396,9 +390,7 @@ def _execute_create_order(db: DBSession, session_db_id: int, total_paise: int, r
                 continue  # retry once
             # Fallback: create a payment link instead
             try:
-                link = asyncio.run(
-                    create_payment_link(total_paise, f"Order {receipt}", receipt)
-                )
+                link = await create_payment_link(total_paise, f"Order {receipt}", receipt)
                 order.status = "fallback_payment_link"
                 order.failure_reason = str(exc)
                 db.commit()
@@ -434,7 +426,7 @@ def _execute_create_order(db: DBSession, session_db_id: int, total_paise: int, r
 # Tool: initiate_payment  (generate payment link for an existing order)
 # ---------------------------------------------------------------------------
 
-def initiate_payment(db: DBSession, session_db_id: int, order_db_id: int) -> dict:
+async def initiate_payment(db: DBSession, session_db_id: int, order_db_id: int) -> dict:
     """Generate a Razorpay payment link for a confirmed order."""
     from backend.razorpay_client import create_payment_link, RazorpayError
 
@@ -445,10 +437,7 @@ def initiate_payment(db: DBSession, session_db_id: int, order_db_id: int) -> dic
         return {"error": "Order not found.", "blocked": True}
 
     try:
-        import asyncio
-        link = asyncio.run(
-            create_payment_link(order.amount_paise, f"Order {order.receipt}", order.receipt)
-        )
+        link = await create_payment_link(order.amount_paise, f"Order {order.receipt}", order.receipt)
         pl = PaymentLink(
             order_id=order.id,
             razorpay_link_id=link.get("id"),

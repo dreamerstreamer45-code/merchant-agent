@@ -548,11 +548,11 @@ class CheckoutAgent:
             elif tool_name == "apply_coupon":
                 return T.apply_coupon(db, session_db_id, **args)
             elif tool_name == "create_razorpay_order":
-                return T.create_razorpay_order(db, session_db_id)
+                return await T.create_razorpay_order(db, session_db_id)
             elif tool_name == "confirm_order":
-                return T.confirm_order(db, session_db_id)
+                return await T.confirm_order(db, session_db_id)
             elif tool_name == "initiate_payment":
-                return T.initiate_payment(db, session_db_id, **args)
+                return await T.initiate_payment(db, session_db_id, **args)
             elif tool_name == "get_recommendations":
                 return T.get_recommendations(db, session_db_id)
             elif tool_name == "search_online_prices":
