@@ -27,8 +27,8 @@ from backend.models import CartItem, Coupon, Order, PaymentLink, Product, Sessio
 # Guardrail constants (can also be set via .env, but defaults are fine for demo)
 # ---------------------------------------------------------------------------
 
-MAX_SINGLE_ORDER_PAISE = int(os.getenv("MAX_SINGLE_ORDER_PAISE", "500000"))      # ₹5,000
-MAX_SESSION_TOTAL_PAISE = int(os.getenv("MAX_SESSION_TOTAL_PAISE", "2000000"))   # ₹20,000
+MAX_SINGLE_ORDER_PAISE = int(os.getenv("MAX_SINGLE_ORDER_PAISE", "10000000"))      # ₹1,00,000
+MAX_SESSION_TOTAL_PAISE = int(os.getenv("MAX_SESSION_TOTAL_PAISE", "50000000"))   # ₹5,00,000
 MAX_QUANTITY_PER_ITEM = int(os.getenv("MAX_QUANTITY_PER_ITEM", "5"))
 CONFIRMATION_THRESHOLD_PAISE = int(os.getenv("CONFIRMATION_THRESHOLD_PAISE", "50000"))  # ₹500
 MAX_DISCOUNT_PERCENT = int(os.getenv("MAX_DISCOUNT_PERCENT", "25"))
