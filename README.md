@@ -206,7 +206,3 @@ tests/test_all.py::TestAPI::test_products                           PASSED
 tests/test_all.py::TestAPI::test_frontend_serves                    PASSED
 ... (26 total)
 ```
-
-## License
-
-MIT
