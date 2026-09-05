@@ -20,34 +20,28 @@ Agent: [create_razorpay_order] → payment link generated
 
 ```mermaid
 flowchart TB
-    User["👤 User (Browser)"]
+    User["👤 User"]
     UI["🌐 Frontend\nChat + Price Cards + Cart + Coupon"]
-    API["⚡ FastAPI\nPOST /api/chat"]
-    Agent["🤖 AI Agent\nOpenRouter Free LLMs"]
-    Tools["🔧 13 Tool Functions\nsearch · cart · order · coupon"]
-    Search["🔍 Price Comparison\nSerpApi + Flipkart + Amazon + DuckDuckGo"]
-    Guard["🛡️ Guardrails\nspending limits · stock check"]
-    Audit["📋 Audit Trail\nSQLite audit_log table"]
-    Razorpay["💳 Razorpay Test API\nOrders + Payment Links"]
-    DB[(SQLite\nproducts · cart · orders · coupons · audit)]
+    API["⚡ FastAPI Server"]
+    Agent["🤖 AI Agent\nFree LLMs via OpenRouter"]
+    Search["🔍 4 Search Providers\nSerpApi · Flipkart · Amazon · DuckDuckGo"]
+    Razorpay["💳 Razorpay\nPayment Gateway"]
 
-    User -->|"natural language"| UI
+    User -->|"types product name"| UI
     UI -->|"POST /api/chat"| API
     API --> Agent
-    Agent -->|"tool_use blocks"| Tools
-    Tools --> Search
-    Tools --> Guard
-    Guard -->|"validated action"| DB
-    Tools -->|"create_order"| Razorpay
-    Tools -->|"log every action"| Audit
-    Agent -->|"final text reply"| API
-    API -->|"JSON response"| UI
-    UI -->|"render reply + price cards + discount"| User
+    Agent -->|"search_online_prices"| Search
+    Agent -->|"add_online_product_to_cart"| UI
+    Agent -->|"apply_coupon"| UI
+    Agent -->|"create_razorpay_order"| Razorpay
+    Search -->|"price results"| Agent
+    Razorpay -->|"payment link"| UI
+    UI -->|"renders price cards + discount"| User
 
     style Agent fill:#6c5ce7,color:#fff
     style Search fill:#00b894,color:#fff
-    style Guard fill:#e17055,color:#fff
     style Razorpay fill:#072654,color:#fff
+    style UI fill:#1e1e2a,color:#fff
 ```
 
 ## Features
