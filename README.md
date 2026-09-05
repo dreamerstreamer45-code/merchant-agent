@@ -1,18 +1,18 @@
 # MerchantAgent — AI-Powered Price Comparison & Checkout
 
-> A conversational shopping agent that searches across **Amazon, Flipkart, and Google Shopping** in real-time, compares prices, and processes payments via **Razorpay** — all through natural language chat.
+> Online shoppers waste hours jumping between Amazon, Flipkart, and other sites to find the cheapest price. MerchantAgent solves this — you type what you want, it searches across multiple platforms, shows you the cheapest options, and lets you pay via Razorpay, all in one chat.
 
-## Live Demo
-
-**[Try it live](https://your-app.up.railway.app)**
+## How It Works
 
 ```
-User: "Find cheapest iPhone 15"
-Agent: [search_online_prices] → queries 4 sources concurrently
+You: "Find cheapest iPhone 15"
+Agent: [search_online_prices] → queries Amazon, Flipkart, Google Shopping
 Agent: "Found 6 results! Cheapest is ₹54,900 on Smartprix"
-User: "Add it to my cart"
-Agent: [add_online_product_to_cart] → cart updated
-User: "Checkout"
+You: *clicks "+ Cart" button*
+Agent: [add_online_product_to_cart] → added to cart
+You: *enters coupon SAVE10, clicks Apply*
+Agent: [apply_coupon] → 10% discount applied
+You: *clicks "Pay with Razorpay"*
 Agent: [create_razorpay_order] → payment link generated
 ```
 
@@ -21,15 +21,15 @@ Agent: [create_razorpay_order] → payment link generated
 ```mermaid
 flowchart TB
     User["👤 User (Browser)"]
-    UI["🌐 Frontend\nChat + Price Cards + Cart"]
+    UI["🌐 Frontend\nChat + Price Cards + Cart + Coupon"]
     API["⚡ FastAPI\nPOST /api/chat"]
-    Agent["🤖 Checkout Agent\nOpenRouter Free LLMs"]
-    Tools["🔧 Tool Functions\nsearch · cart · order"]
+    Agent["🤖 AI Agent\nOpenRouter Free LLMs"]
+    Tools["🔧 13 Tool Functions\nsearch · cart · order · coupon"]
     Search["🔍 Price Comparison\nSerpApi + Flipkart + Amazon + DuckDuckGo"]
     Guard["🛡️ Guardrails\nspending limits · stock check"]
     Audit["📋 Audit Trail\nSQLite audit_log table"]
     Razorpay["💳 Razorpay Test API\nOrders + Payment Links"]
-    DB[(SQLite\nproducts · cart · orders · audit)]
+    DB[(SQLite\nproducts · cart · orders · coupons · audit)]
 
     User -->|"natural language"| UI
     UI -->|"POST /api/chat"| API
@@ -42,7 +42,7 @@ flowchart TB
     Tools -->|"log every action"| Audit
     Agent -->|"final text reply"| API
     API -->|"JSON response"| UI
-    UI -->|"render reply + price cards"| User
+    UI -->|"render reply + price cards + discount"| User
 
     style Agent fill:#6c5ce7,color:#fff
     style Search fill:#00b894,color:#fff
@@ -52,28 +52,33 @@ flowchart TB
 
 ## Features
 
-| Feature | Description |
+| Feature | What It Does |
 |---------|-------------|
 | **Multi-Platform Search** | Searches Amazon, Flipkart, Google Shopping simultaneously |
-| **Price Comparison** | Results sorted by cheapest first with source badges |
-| **Add to Cart** | Online products added to cart for Razorpay checkout |
-| **Razorpay Payments** | Test-mode order creation + payment link generation |
-| **Audit Trail** | Every tool call logged with explanation and status |
-| **Guardrails** | Spending limits, stock checks, confirmation gates |
-| **Free LLMs** | Uses OpenRouter free model fallback chain |
-| **Async Search** | All providers queried concurrently with timeout handling |
+| **Price Comparison** | Results sorted cheapest first with source badges (Amazon/Flipkart/etc.) |
+| **"+ Cart" Button** | Click to add any search result directly to your cart |
+| **Coupon System** | Enter coupon code → discount applied to cart total (SAVE10, FLAT20, etc.) |
+| **Discount Display** | Cart shows ~~original price~~ → discount amount → final total |
+| **Razorpay Checkout** | Direct checkout — click "Pay with Razorpay" and payment link is generated |
+| **No Confirmation Flow** | Actions execute immediately — no "type confirm" or "would you like to proceed?" |
+| **Quick Search Chips** | One-click buttons for trending products, electronics, fashion, deals |
+| **Category Navigation** | Top nav with Trending, Electronics, Fashion, Home, Best Deals |
+| **Audit Trail** | Every tool call logged with explanation, timestamp, and status |
+| **Free LLMs** | Uses OpenRouter free model fallback chain (zero API cost) |
+| **Async Search** | All 4 providers queried concurrently with timeout handling |
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
 | Backend | Python 3.11+, FastAPI, SQLAlchemy |
-| LLM | OpenRouter (Inkling, Dots3, Nemotron) via OpenAI SDK |
+| LLM | OpenRouter free models (Inkling, Dots3, Nemotron) via OpenAI SDK |
 | Payments | Razorpay Python SDK (test mode) |
-| Database | SQLite |
+| Database | SQLite (products, cart, orders, coupons, audit) |
 | Search | SerpApi (Google Shopping), RapidAPI (Flipkart/Amazon), DuckDuckGo |
 | Frontend | Vanilla HTML/CSS/JS + Three.js (3D animated logo) |
 | Tests | pytest + pytest-asyncio (26 tests) |
+| Deployment | Docker + Railway |
 
 ## Project Structure
 
@@ -81,9 +86,9 @@ flowchart TB
 merchant-agent/
 ├── backend/
 │   ├── main.py                  # FastAPI app, endpoints, lifespan
-│   ├── agent.py                 # LLM tool-calling orchestration
-│   ├── tools.py                 # 12 validated tool functions
-│   ├── models.py                # SQLAlchemy ORM + Pydantic schemas
+│   ├── agent.py                 # LLM tool-calling orchestration (13 tools)
+│   ├── tools.py                 # Validated tool functions + guardrails
+│   ├── models.py                # SQLAlchemy ORM (7 tables)
 │   ├── audit.py                 # Audit trail logging
 │   ├── razorpay_client.py       # Razorpay SDK wrapper
 │   ├── seed.py                  # 60 demo products + 5 coupons
@@ -95,9 +100,9 @@ merchant-agent/
 │       ├── duckduckgo_provider.py # Free fallback (no API key)
 │       └── aggregator.py        # Concurrent search + dedup + sort
 ├── frontend/
-│   └── index.html               # Chat widget + price cards + cart
+│   └── index.html               # Chat + price cards + cart + coupon + nav
 ├── tests/
-│   └── test_all.py              # 26 tests (models, tools, API, search)
+│   └── test_all.py              # 26 tests
 ├── Dockerfile                   # Railway deployment
 ├── railway.json                 # Railway config
 ├── requirements.txt
@@ -164,6 +169,16 @@ python -m pytest tests/ -v
 | `GET` | `/` | Frontend UI |
 | `GET` | `/docs` | Auto-generated API docs |
 
+## Available Coupons
+
+| Code | Discount | Max Uses |
+|------|----------|----------|
+| `SAVE10` | 10% off | 100 |
+| `FLAT20` | 20% off | 50 |
+| `WELCOME15` | 15% off | 200 |
+| `MEGA25` | 25% off | 30 |
+| `FIRST50` | 50% off | 10 |
+
 ## Deployment
 
 ### Railway (recommended)
@@ -191,6 +206,7 @@ tests/test_all.py::TestDuckDuckGoProvider::test_search_returns_list PASSED
 tests/test_all.py::TestDuckDuckGoProvider::test_price_extraction    PASSED
 tests/test_all.py::TestAggregator::test_deduplication               PASSED
 tests/test_all.py::TestTools::test_add_online_product_to_cart       PASSED
+tests/test_all.py::TestTools::test_apply_coupon_invalid             PASSED
 tests/test_all.py::TestAPI::test_health                             PASSED
 tests/test_all.py::TestAPI::test_products                           PASSED
 tests/test_all.py::TestAPI::test_frontend_serves                    PASSED
